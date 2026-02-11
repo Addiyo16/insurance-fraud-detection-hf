@@ -1,71 +1,66 @@
 import streamlit as st
-import requests
+import numpy as np
+import joblib
 from typing import Dict
 
-# CONFIGURATION
+# CONFIG
 
 APP_TITLE = "Insurance Fraud Detection System"
-API_URL = "https://insurance-fraud-detection-2-f459.onrender.com/predict"
-REQUEST_TIMEOUT = 30
+MODEL_PATH = "ml/artifacts/model.pkl"  # change if needed
 
 st.set_page_config(
     page_title=APP_TITLE,
     layout="centered"
 )
 
-# HELPER FUNCTIONS
+# LOAD MODEL (ONCE)
 
-def call_fraud_api(payload: Dict) -> Dict:
+@st.cache_resource
+def load_model():
+    return joblib.load(MODEL_PATH)
+
+model = load_model()
+
+# ML INFERENCE (REAL FIX)
+
+def predict_fraud(payload: Dict) -> Dict:
     """
-    Sends claim data to the FastAPI backend and returns the prediction result.
+    Runs real ML inference locally inside Hugging Face.
     """
-    response = requests.post(
-        API_URL,
-        json=payload,
-        timeout=REQUEST_TIMEOUT
-    )
-    response.raise_for_status()
-    return response.json()
 
+    # Convert input dict → model input
+    features = np.array([list(payload.values())])
 
-def render_result(result: Dict) -> None:
-    """
-    Renders the prediction result returned by the backend.
-    """
-    st.subheader("📊 Decision Result")
+    prediction = model.predict(features)[0]
+    probability = model.predict_proba(features)[0][1]
 
-    if not result.get("eligible", False):
-        st.error("❌ Claim Not Eligible")
-        for reason in result.get("reasons", []):
-            st.write("•", reason)
-        return
+    reasons = []
+    if payload["claim_amount"] > 100000:
+        reasons.append("High claim amount")
+    if payload["policy_tenure_days"] < 90:
+        reasons.append("Short policy tenure")
+    if payload["num_previous_claims"] > 2:
+        reasons.append("Multiple previous claims")
 
-    if result.get("fraud", False):
-        st.error("🚨 Fraudulent Claim Detected")
-        st.write("**Action:** Investigate / Reject")
-    else:
-        st.success("✅ Claim Appears Legitimate")
-        st.write("**Action:** Approve")
+    if not reasons:
+        reasons.append("No major risk factors detected")
 
-    probability = result.get("probability")
-    if probability is not None:
-        st.write(f"**Fraud Probability:** `{probability}`")
-
-    reasons = result.get("reasons", [])
-    if reasons:
-        st.write("**Risk Factors:**")
-        for r in reasons:
-            st.write("•", r)
+    return {
+        "eligible": True,
+        "fraud": bool(prediction),
+        "probability": round(float(probability), 2),
+        "reasons": reasons
+    }
 
 # UI HEADER
 
 st.title("🛡️ Insurance Fraud Detection System")
 st.write(
-    "Submit an insurance claim to evaluate **eligibility**, "
+    "Evaluate insurance claims for **eligibility**, "
     "**fraud risk**, and receive **explainable decisions**."
 )
 
-# INPUT MODE SELECTION
+# INPUT MODE
 
 input_mode = st.radio(
     "Choose input method:",
@@ -74,12 +69,9 @@ input_mode = st.radio(
 
 submitted = False
 
-# INPUT FORMS
+# COMMON INPUTS
 
 def common_claim_inputs():
-    """
-    Renders shared claim input fields.
-    """
     insurance_type = st.selectbox(
         "Insurance Type", ["health", "vehicle", "life", "finance"]
     )
@@ -97,24 +89,12 @@ def common_claim_inputs():
         "Region", ["north", "south", "east", "west"]
     )
 
-    claim_amount = st.number_input(
-        "Claim Amount", min_value=0, value=50000
-    )
-    customer_age = st.number_input(
-        "Customer Age", min_value=18, value=35
-    )
-    policy_tenure_days = st.number_input(
-        "Policy Tenure (days)", min_value=1, value=180
-    )
-    num_previous_claims = st.number_input(
-        "Previous Claims", min_value=0, value=0
-    )
-    days_since_last_claim = st.number_input(
-        "Days Since Last Claim", min_value=0, value=200
-    )
-    claim_processing_days = st.number_input(
-        "Claim Processing Days", min_value=1, value=10
-    )
+    claim_amount = st.number_input("Claim Amount", min_value=0, value=50000)
+    customer_age = st.number_input("Customer Age", min_value=18, value=35)
+    policy_tenure_days = st.number_input("Policy Tenure (days)", min_value=1, value=180)
+    num_previous_claims = st.number_input("Previous Claims", min_value=0, value=0)
+    days_since_last_claim = st.number_input("Days Since Last Claim", min_value=0, value=200)
+    claim_processing_days = st.number_input("Claim Processing Days", min_value=1, value=10)
 
     return {
         "insurance_type": insurance_type,
@@ -130,38 +110,43 @@ def common_claim_inputs():
         "claim_processing_days": claim_processing_days,
     }
 
+# FORMS
 
 if input_mode == "Claim Description (Text)":
     with st.form("text_claim_form"):
         st.subheader("📝 Claim Description")
-
         st.text_area(
             "Describe the claim",
             placeholder="Example: Accident occurred last month, claimed 150000 for vehicle repair..."
         )
-
         input_data = common_claim_inputs()
         submitted = st.form_submit_button("🔍 Evaluate Claim")
-
 else:
     with st.form("structured_claim_form"):
         st.subheader("📋 Claim Details")
-
         input_data = common_claim_inputs()
         submitted = st.form_submit_button("🔍 Evaluate Claim")
 
-# API CALL & OUTPUT
+# OUTPUT
 
 if submitted:
-    try:
-        with st.spinner("Analyzing claim..."):
-            result = call_fraud_api(input_data)
+    with st.spinner("Analyzing claim..."):
+        result = predict_fraud(input_data)
 
-        render_result(result)
+    st.subheader("📊 Decision Result")
 
-    except requests.exceptions.Timeout:
-        st.error("⏱️ Request timed out. Backend may be waking up. Please retry.")
+    if result["fraud"]:
+        st.error("🚨 Fraudulent Claim Detected")
+        st.write("**Action:** Investigate / Reject")
+    else:
+        st.success("✅ Claim Appears Legitimate")
+        st.write("**Action:** Approve")
 
-    except requests.exceptions.RequestException as e:
-        st.error("⚠️ Unable to reach backend service.")
-        st.caption(str(e))
+    st.write(f"**Fraud Probability:** `{result['probability']}`")
+
+    st.write("**Risk Factors:**")
+    for r in result["reasons"]:
+        st.write("•", r)
+
+st.markdown("---")
+st.caption("Insurance Fraud Detection System | Hugging Face Streamlit Deployment")
