@@ -3,8 +3,9 @@ import joblib
 import streamlit as st
 import pandas as pd
 
+# --------------------------------------------------
 # PAGE CONFIG
-
+# --------------------------------------------------
 st.set_page_config(
     page_title="Insurance Fraud Detection",
     page_icon="🛡️",
@@ -12,45 +13,29 @@ st.set_page_config(
 )
 
 st.title("🛡️ Insurance Fraud Detection System")
-st.write("Predict whether an insurance claim is **fraudulent or genuine**.")
 
-# PATH SETUP (DEPLOYMENT SAFE)
-
+# --------------------------------------------------
+# PATH (ROOT FOLDER)
+# --------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ARTIFACTS_DIR = os.path.join(BASE_DIR, "ml", "artifacts")
+MODEL_PATH = os.path.join(BASE_DIR, "best_fraud_pipeline.pkl")
 
-MODEL_PATH = os.path.join(ARTIFACTS_DIR, "best_fraud_pipeline")
-SCALER_PATH = os.path.join(ARTIFACTS_DIR, "scaler.pkl")
-ENCODER_PATH = os.path.join(ARTIFACTS_DIR, "encoder.pkl")
-
-# LOAD MODEL & ARTIFACTS (NO SPINNER HERE)
-
+# --------------------------------------------------
+# LOAD MODEL (PIPELINE ONLY)
+# --------------------------------------------------
 @st.cache_resource
-def load_artifacts():
+def load_model():
     if not os.path.exists(MODEL_PATH):
         st.error(f"❌ Model file not found at: {MODEL_PATH}")
         st.stop()
+    return joblib.load(MODEL_PATH)
 
-    model = joblib.load(MODEL_PATH)
-
-    scaler = None
-    encoder = None
-
-    if os.path.exists(SCALER_PATH):
-        scaler = joblib.load(SCALER_PATH)
-
-    if os.path.exists(ENCODER_PATH):
-        encoder = joblib.load(ENCODER_PATH)
-
-    return model, scaler, encoder
-
-
-model, scaler, encoder = load_artifacts()
-
+model = load_model()
 st.success("✅ Model loaded successfully")
 
-# USER INPUT FORM
-
+# --------------------------------------------------
+# INPUT FORM
+# --------------------------------------------------
 st.subheader("📋 Enter Claim Details")
 
 insurance_type = st.selectbox(
@@ -84,10 +69,11 @@ claim_amount = st.number_input(
     step=500
 )
 
+# --------------------------------------------------
 # PREDICTION
-
+# --------------------------------------------------
 if st.button("🔍 Predict Fraud"):
-    input_data = pd.DataFrame([{
+    input_df = pd.DataFrame([{
         "insurance_type": insurance_type,
         "policy_type": policy_type,
         "incident_type": incident_type,
@@ -96,14 +82,7 @@ if st.button("🔍 Predict Fraud"):
         "claim_amount": claim_amount
     }])
 
-    # Optional preprocessing
-    if encoder:
-        input_data = encoder.transform(input_data)
-
-    if scaler:
-        input_data = scaler.transform(input_data)
-
-    prediction = model.predict(input_data)[0]
+    prediction = model.predict(input_df)[0]
 
     st.subheader("📊 Prediction Result")
 
@@ -111,4 +90,11 @@ if st.button("🔍 Predict Fraud"):
         st.error("🚨 Fraudulent Claim Detected")
     else:
         st.success("✅ Genuine Claim")
+
+# --------------------------------------------------
+# FOOTER
+# --------------------------------------------------
+st.markdown("---")
+st.caption("Built with Streamlit & ML Pipeline")
+
 
