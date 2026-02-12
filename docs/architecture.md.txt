@@ -1,0 +1,145 @@
+System Architecture – Insurance Fraud Detection System
+Overview
+
+The Insurance Fraud Detection System is an end-to-end Machine Learning web application that predicts whether an insurance claim is Fraudulent or Genuine.
+The application is built using Streamlit and deployed on Hugging Face Spaces, with GitHub-integrated continuous deployment.
+
+The system follows a single-service ML app architecture, where UI, inference logic, and model loading are tightly integrated for simplicity and reliability.
+
+High-Level Architecture
+
+Architecture Flow
+User
+ ↓
+Streamlit UI (Hugging Face)
+ ↓
+Input Validation & Preprocessing
+ ↓
+Trained ML Model (.pkl)
+ ↓
+Fraud Prediction
+ ↓
+Result Display (Genuine / Fraud)
+
+Component-Level Architecture
+Frontend Layer (Streamlit UI)
+
+Implemented using Streamlit.
+
+Provides form-based inputs for insurance claim attributes.
+
+Runs directly inside Hugging Face Spaces.
+
+Responsibilities
+
+Collect claim details
+
+Validate user inputs
+
+Display prediction results
+
+Inference & Business Logic Layer
+
+Inference logic is embedded inside app.py.
+
+Loads the trained model once at application startup.
+
+Ensures feature alignment between training and inference.
+
+Responsibilities
+
+Schema validation
+
+Feature ordering and formatting
+
+Prediction execution
+
+Machine Learning Model Layer
+
+Trained using:
+
+Random Forest
+
+XGBoost
+
+Logistic Regression
+
+Final model serialized as a .pkl file.
+
+Loaded dynamically during runtime.
+
+Responsibilities
+
+Fraud classification
+
+Consistent preprocessing via pipelines
+
+Deployment Layer (Hugging Face Spaces)
+
+Application is hosted on Hugging Face Spaces.
+
+GitHub repository is connected for automatic redeployment.
+
+Every push to GitHub triggers a new build.
+
+Responsibilities
+
+Application hosting
+
+CI-based redeployment
+
+Runtime environment management
+
+Data Flow Diagram
+Claim Input (UI)
+      ↓
+Validation & Encoding
+      ↓
+Preprocessing Pipeline
+      ↓
+ML Model Prediction
+      ↓
+Fraud Status Output
+
+Technology Stack
+
+Layer	Technology
+UI	Streamlit
+ML	Scikit-learn, XGBoost
+Data	Pandas, NumPy
+Deployment	Hugging Face Spaces
+Version Control	GitHub
+
+Deployment Workflow
+
+Code is pushed to GitHub repository
+
+Hugging Face detects repository update
+
+Application rebuilds automatically
+
+Updated version goes live instantly
+
+Design Decisions
+
+Single-service architecture for simplicity
+
+No separate backend API to reduce latency
+
+Cloud-native deployment for accessibility
+
+Model preloading to improve performance
+
+Scalability & Future Enhancements
+
+Introduce FastAPI for decoupled backend
+
+Add model explainability (SHAP / LIME)
+
+Store prediction logs for monitoring
+
+Support multiple insurance domains
+
+Conclusion
+
+This architecture demonstrates a production-aware ML system, combining model training, inference, UI, and cloud deployment into a single, maintainable application suitable for real-world usage.
